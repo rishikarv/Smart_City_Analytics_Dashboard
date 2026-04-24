@@ -330,6 +330,8 @@ def show_energy():
 
     if st.button("⬅ Back"):
         st.session_state.page = "home"
+        st.rerun()
+        
 
     st.header("⚡ Energy Consumption Prediction")
 
@@ -482,6 +484,7 @@ def show_crime():
 
     if st.button("⬅ Back"):
         st.session_state.page = "home"
+        st.rerun()
 
     import pandas as pd
     import folium
@@ -633,6 +636,7 @@ def show_waste():
 
     if st.button("⬅ Back"):
         st.session_state.page = "home"
+        st.rerun()
 
     st.header("🗑️ Waste Collection Route Optimization")
 
