@@ -3,115 +3,338 @@ import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
 import folium
-from sklearn.preprocessing import LabelEncoder
 import numpy as np
+from scipy.spatial.distance import cdist
+from sklearn.cluster import KMeans
+from folium.plugins import HeatMap
+
+# =========================
+# SESSION STATE
+# =========================
+
+if "page" not in st.session_state:
+    st.session_state.page = "home"
 
 st.markdown("""
-    <style>
-    /* Background */
+<style>
+
+/* BACKGROUND */
 .stApp {
-    background-color: #0d1117;
-    color: #ffffff;
+    background: radial-gradient(circle at top, #0d1117, #020617);
+    color: white;
 }
 
-/* Sidebar */
-section[data-testid="stSidebar"] {
-    background-color: #161b22;
+/* CENTER CONTENT */
+.main {
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-/* TEXT COLORS */
-h1, h2, h3 {
-    color: #ffffff;
+/* TITLE */
+.title {
+    text-align: center;
+    font-size: 52px;
+    font-weight: 700;
+    margin-bottom: 10px;
 }
 
-p, label, div {
-    color: #e6edf3 !important;
+.subtitle {
+    text-align: center;
+    color: #8b949e;
+    font-size: 18px;
+    margin-bottom: 40px;
 }
 
-/* Inputs */
+/* CARD GRID */
+.card-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+}
+
+/* ROW */
+.card-row {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+}
+div[data-testid="column"] {
+    padding: 12px !important;
+}
+/* CARD */
+.card {
+    width: 100%;
+    height: 220px;
+    background: linear-gradient(145deg, #0f172a, #020617);
+    border-radius: 20px;
+    padding: 20px;
+    text-align: center;
+    position:relative;
+    overflow:hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    
+    
+}
+
+/* GLOW BORDER */
+.card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    padding: 1px;
+    background: linear-gradient(120deg, #00f5ff, #7c3aed, #22c55e);
+    -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+/* HOVER */
+.card:hover {
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0px 0px 30px rgba(0,255,255,0.2);
+}
+
+/* ICON */
+.icon-box {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+
+/* TITLE */
+.card-title {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+/* DESC */
+.card-desc {
+    font-size: 13px;
+    color: #8b949e;
+    margin-bottom: 15px;
+}
+
+/* BUTTON */
+.stButton>button {
+    background: linear-gradient(90deg, #16a34a, #22c55e);
+    border-radius: 8px;
+    border: none;
+    font-weight: 500;
+    padding: 8px 16px;
+    color: white;
+    font-weight: 500;
+    
+}
+.btn-inside {
+    display: flex;
+    justify-content: center;
+    margin-top: -55px;  /* 🔥 pulls button inside card */
+}
+/* CENTER BUTTON */
+
+div.stButton {
+    display: flex;
+    justify-content: center;
+    margin-top: -10px;
+}
+            
+/* ===== TEXT COLOR FIX ===== */
+
+/* Labels (Month, Day, etc.) */
+label {
+    color: white !important;
+}
+
+/* Slider text */
+.stSlider label {
+    color: white !important;
+}
+
+/* Number input */
 .stNumberInput input {
     color: white !important;
     background-color: #161b22 !important;
 }
 
-/* Buttons */
-.stButton>button {
-    background-color: #238636;
-    color: white;
-    border-radius: 8px;
-    font-size: 16px;
-}
-
-.stButton>button:hover {
-    background-color: #2ea043;
-}
-    /* Cards effect */
-    .css-1r6slb0, .css-12oz5g7 {
-        background-color: #161b22;
-        padding: 15px;
-        border-radius: 10px;
-    }
-            /* REMOVE TOP SPACE */
-.block-container {
-    padding-top: 1rem;
-}
-[data-testid="stSidebarCollapsedControl"]:hover {
-    background-color: #2ea043 !important;
-    border-radius: 8px;
-}
-/* Fix selectbox text visibility */
+/* Selected text ONLY (no background change) */
 div[data-baseweb="select"] > div {
+    background-color: #0f172a !important;
     color: white !important;
-    background-color: #161b22 !important;
+    border: 1px solid #30363d !important;
 }
 
-/* Dropdown menu */
-ul {
-    background-color: #161b22 !important;
+
+/* Input text (general) */
+input {
     color: white !important;
 }
 
-
-
-/* REMOVE HEADER SPACE */
-header {
-    background: transparent !important;
+/* Placeholder text */
+::placeholder {
+    color: #8b949e !important;
 }
-footer {visibility: hidden;}
-    </style>
+span{
+    color :white! important};
+
+
+
+</style>
+""", unsafe_allow_html=True)
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 1rem !important;
+}
+header {visibility: hidden;}
+</style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center;'>🌆 Smart City Analytics Dashboard</h1>", unsafe_allow_html=True)
 
+# =========================
+# HOME PAGE
+# =========================
+def show_home():
 
-st.sidebar.markdown("## 🚀Modules")
-st.sidebar.markdown("Select a module to explore:")
-option = st.sidebar.radio(
-    "Select Module",
-    ["Overview","Energy Consumption", "Traffic Congestion", "Crime Hotspots", "Air Quality Level", "Waste Collection Route"]
-)
-if option == "Overview":
-   if option == "Overview":
     st.markdown("""
-    
-    #### ⚡ Energy Consumption Prediction
-    Forecasts energy usage (kWh) based on time factors (month, day, hour, minute), temperature, and weekday/weekend patterns.
-    #### 🚦 Traffic Congestion Prediction
-    Predicts traffic levels (Low, Medium, High) using inputs like vehicle count, speed, lane occupancy, and flow rate.
-    #### 🚓 Crime Hotspot Detection
-    Uses clustering (K-Means) on real crime location data to identify high-risk zones and visualize them on a heatmap.
-    #### 🌫️ Air Pollution (AQI) Prediction
-    Estimates Air Quality Index using environmental parameters such as PM2.5, PM10, NO₂, CO, temperature, and humidity.
-    #### 🗑️ Waste Route Optimization
-    Identifies high-fill waste bins (>70%) and generates an optimized collection route using distance-based algorithms.
+    <h1 style='text-align:center;'>🌆 Smart City Analytics System</h1>
+    <p style="color:#a1a1aa; font-size:15px; max-width:600px; margin:auto;">
+        Monitor and predict city systems with AI — from ⚡ energy and 🚦 traffic 
+        to 🌫️ air quality, 🚓 safety, and 🗑️ waste management.
+    </p>
+    <br><br>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+     <div style="text-align:center; margin-top:10px; margin-bottom:25px;">
 
-   ---
-    💡 This project demonstrates the practical use of Machine Learning, Data Visualization, and Optimization techniques in smart city development.
-    """)
-if option == "Energy Consumption":
-    st.header("⚡ Energy Conusmption Prediction")
+    <span style="
+        color:#9ca3af;
+        font-size:14px;
+    ">
+        ⚡ 5 AI Models • 🚀 Real-time Predictions • 🌐 Smart City Insights
+    </span>
+
+    <div style="
+        width:80px;
+        height:3px;
+        margin:10px auto;
+        border-radius:10px;
+      "></div>
+
+    </div>
+""", unsafe_allow_html=True)
+   
+
+    col1, col2, col3 = st.columns(3)
+    st.markdown("<br>", unsafe_allow_html=True)
+    with col1:
+     st.markdown("""
+      <div class="card">
+        <div class="icon-box">⚡</div>
+        <div class="card-title">Energy Consumption</div>
+        <div class="card-desc">Predict energy consumption based on various factors</div>
+      </div>
+    """, unsafe_allow_html=True)
+
+     st.markdown('<div class="btn-inside">', unsafe_allow_html=True)
+     if st.button("Predict Energy", key="energy"):
+        st.session_state.page = "Energy"
+        st.rerun()
+     st.markdown('</div>', unsafe_allow_html=True)
+     
+
+    with col2:
+     st.markdown("""
+       <div class="card">
+        <div class="icon-box">🚦</div>
+        <div class="card-title">Traffic Congestion </div>
+        <div class="card-desc">
+            Predict traffic congestion and optimize flow.
+        </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+     st.markdown('<div class="btn-inside">', unsafe_allow_html=True)
+     if st.button("Predict Traffic", key="traffic"):
+        st.session_state.page = "Traffic"
+        st.rerun()
+     st.markdown('</div>', unsafe_allow_html=True)
+
+
+    with col3:
+     st.markdown("""
+    <div class="card">
+        <div class="icon-box">🌫️</div>
+        <div class="card-title">Air Quality Level</div>
+        <div class="card-desc">
+            Predict air quality index using environmental data.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+     st.markdown('<div class="btn-inside">', unsafe_allow_html=True)
+     if st.button("Predict AQI", key="air"):
+        st.session_state.page = "Air"
+        st.rerun()
+     st.markdown('</div>', unsafe_allow_html=True)
+
+     st.markdown("<br>", unsafe_allow_html=True)
+
+    col4,col6= st.columns(2)
+
+    with col4:
+     st.markdown("""
+    <div class="card">
+        <div class="icon-box">🚓</div>
+        <div class="card-title">Crime Hotspots</div>
+        <div class="card-desc">
+            Detect crime hotspots using clustering algorithms.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+     st.markdown('<div class="btn-inside">', unsafe_allow_html=True)
+     if st.button("Crime Detection", key="crime"):
+        st.session_state.page = "Crime"
+        st.rerun()
+     st.markdown('</div>', unsafe_allow_html=True)
+
+    with col6:
+     st.markdown("""
+    <div class="card">
+        <div class="icon-box">🗑️</div>
+        <div class="card-title">Waste Collection Route</div>
+        <div class="card-desc">
+            Optimize waste collection routes efficiently.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+     st.markdown('<div class="btn-inside">', unsafe_allow_html=True)
+     if st.button("Optimize Waste", key="waste"):
+        st.session_state.page = "Waste"
+        st.rerun()
+     st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================
+# ENERGY MODULE
+# =========================
+def show_energy():
+
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
+
+    st.header("⚡ Energy Consumption Prediction")
 
     model = joblib.load("models/EnergyConsumption.pkl")
+
     colE1, colE2 = st.columns(2)
 
     with colE1:
@@ -150,9 +373,17 @@ if option == "Energy Consumption":
 """, unsafe_allow_html=True)
 
 
-# TRAFFIC PREDICTION
-if option == "Traffic Congestion":
+# =========================
+# TRAFFIC
+# =========================
+def show_traffic():
+
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
+        st.rerun()
+
     st.header("🚦 Traffic Congestion Prediction")
+
 
     model = joblib.load("models/Traffic_Congestion.pkl")
 
@@ -189,10 +420,15 @@ if option == "Traffic Congestion":
         </div>
     """, unsafe_allow_html=True)
 
+# =========================
+# AIR
+# =========================
+def show_air():
 
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
+        st.rerun()
 
-# AIR QUALITY INDEX PREDICTION
-if option == "Air Quality Level":
     st.header("🌫️ Air Quality Level Prediction")
 
     model = joblib.load("models/air_model.pkl")
@@ -239,11 +475,13 @@ if option == "Air Quality Level":
 <p style='font-size:18px;'>Air Quality: <b>{status}</b></p>
 </div>
 """, unsafe_allow_html=True)
+# =========================
+# CRIME
+# =========================
+def show_crime():
 
-
-# CRIME HOTSPOT DETECTION
-if option == "Crime Hotspots":
-    st.header("🚓 Crime Hotspots Detection")
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
 
     import pandas as pd
     import folium
@@ -387,9 +625,18 @@ if option == "Crime Hotspots":
             else:
                 st.success("🟢 Low Crime Area")
 
-if option == "Waste Collection Route":
+
+# =========================
+# WASTE
+# =========================
+def show_waste():
+
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
+
     st.header("🗑️ Waste Collection Route Optimization")
 
+    
     import pandas as pd
     import folium
     from scipy.spatial.distance import cdist
@@ -418,7 +665,7 @@ if option == "Waste Collection Route":
     # -------------------------
     # DUMP LOCATION
     # -------------------------
-    DUMP_LOCATION = (28.7041, 77.1025)
+    DUMP_LOCATION = (28.5308, 77.2713)
 
     # -------------------------
     # UI
@@ -506,3 +753,21 @@ if option == "Waste Collection Route":
         # -------------------------
         st.success(f"Pickup: {pickup_area}")
         st.info(f"Bins Covered: {len(points)}")
+
+if st.session_state.page == "home":
+    show_home()
+
+elif st.session_state.page == "Energy":
+    show_energy()
+
+elif st.session_state.page == "Traffic":
+    show_traffic()
+
+elif st.session_state.page == "Air":
+    show_air()
+
+elif st.session_state.page == "Crime":
+    show_crime()
+
+elif st.session_state.page == "Waste":
+    show_waste()
