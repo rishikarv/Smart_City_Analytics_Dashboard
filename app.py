@@ -485,6 +485,8 @@ def show_crime():
     if st.button("⬅ Back"):
         st.session_state.page = "home"
         st.rerun()
+        
+    st.header("🚓 Crime Hotspots Detection")
 
     import pandas as pd
     import folium
